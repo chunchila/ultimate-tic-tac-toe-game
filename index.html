@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>איקס עיגול אולטימטיבי</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0c1220;color:#e9efff;min-height:100vh;display:flex;flex-direction:column;align-items:center;overflow:hidden;touch-action:none;user-select:none}
+header{width:100%;max-width:520px;padding:11px 16px 2px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px}
+h1{font-size:20px;color:#4ade80}
+#hud{font-size:12px;background:#ffffff14;padding:6px 10px;border-radius:14px;display:flex;gap:8px;font-weight:700;flex-wrap:wrap}
+#msg{font-size:13.5px;color:#9fb0cc;min-height:19px;padding:2px 8px}
+#wrap{width:100%;max-width:520px;padding:0 8px}
+canvas{width:100%;display:block;border-radius:14px;background:#101a30;touch-action:none}
+button.big{width:calc(100% - 16px);max-width:504px;margin:8px;padding:15px;font-size:16px;font-weight:800;border:none;border-radius:14px;background:linear-gradient(135deg,#4ade80,#16a34a);color:#052e12;cursor:pointer}
+.ov{position:fixed;inset:0;background:#0c1220e8;display:flex;align-items:center;justify-content:center;z-index:9;padding:20px}
+.card{background:#14203a;border:2px solid #4ade8055;border-radius:22px;padding:26px 22px;text-align:center;max-width:340px;width:100%}
+.card h2{color:#4ade80;font-size:26px;margin-bottom:10px}
+.card p{color:#c8d6ee;font-size:14px;line-height:1.6;margin-bottom:18px}
+.card button{padding:14px 40px;font-size:17px;font-weight:800;border:none;border-radius:14px;background:linear-gradient(135deg,#4ade80,#16a34a);color:#052e12;cursor:pointer}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<header><h1>איקס עיגול אולטימטיבי</h1><div id="hud"><span id="turn">תורכם</span><span id="wonB">0 : 0</span></div></header>
+<div id="msg">זכו בלוחות הקטנים כדי לזכות בלוח הגדול</div>
+<div id="wrap"><canvas id="c"></canvas></div>
+<button class="big" id="newB">משחק חדש</button>
+<div class="ov" id="ovS"><div class="card"><h2>איקס עיגול אולטימטיבי</h2><p>תשעה לוחות איקס עיגול באחד! המשבצת שבה שיחקתם קובעת באיזה לוח היריב ישחק. זכו בשלושה לוחות קטנים ברצף כדי לנצח. אתם X והמחשב O.</p><button id="startBtn">התחל</button></div></div>
+<div class="ov hide" id="ovE"><div class="card"><h2 id="ovT"></h2><p id="ovP"></p><button id="againB">שחקו שוב</button></div></div>
+<script>
+'use strict';
+const c=document.getElementById('c'),x=c.getContext('2d');x.direction='ltr';
+const S=390;c.width=S;c.height=S;
+const msg=document.getElementById('msg'),turnEl=document.getElementById('turn'),wonEl=document.getElementById('wonB');
+const LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+let boards,bWon,active,over,run,turn,thinking;
+function winLine(b){for(const[a,d,e]of LINES)if(b[a]&&b[a]===b[d]&&b[a]===b[e])return b[a];return b.every(v=>v)?'D':null}
+function reset(){boards=Array.from({length:9},()=>Array(9).fill(''));bWon=Array(9).fill(null);active=-1;over=null;thinking=false;updHud();msg.textContent='געו במשבצת כדי לשחק X'}
+function updHud(){const p=bWon.filter(w=>w==='X').length,a=bWon.filter(w=>w==='O').length;wonEl.textContent=p+' : '+a;turnEl.textContent=over?'סיום':(turn==='X'?'תורכם':'תור המחשב')}
+function legalMoves(){const m=[];const bs=active>=0?[active]:boards.map((_,i)=>i);for(const b of bs){if(bWon[b])continue;for(let i=0;i<9;i++)if(!boards[b][i])m.push([b,i])}return m}
+function place(b,i,pl){
+  boards[b][i]=pl;
+  const w=winLine(boards[b]);if(w)bWon[b]=w;
+  active=(bWon[i])?-1:i;
+  const mW=winLine(bWon.map(v=>v||''));
+  if(mW==='X'||mW==='O')over=mW;else if(legalMoves().length===0)over='D';
+  draw();
+  if(over){endGame();return}
+  turn=(pl==='X')?'O':'X';updHud();
+  if(turn==='O'){msg.textContent='המחשב חושב...';thinking=true;setTimeout(aiMove,650)}
+  else msg.textContent=active>=0?'שחקו בלוח המודגש':'שחקו בכל לוח פתוח';
+}
+function endGame(){
+  run=false;
+  const t=over==='X'?'ניצחתם!':over==='O'?'המחשב ניצח':'תיקו';
+  const p=over==='X'?'שלושה לוחות ברצף - כל הכבוד!':over==='O'?'המחשב השיג שלושה לוחות ברצף.':'כל הלוחות מלאים.';
+  document.getElementById('ovT').textContent=t;document.getElementById('ovP').textContent=p;
+  document.getElementById('ovE').classList.remove('hide');msg.textContent='שחקו שוב!';
+}
+// AI
+function boardScore(b){let s=0;for(const[a,d,e]of LINES){const v=[b[a],b[d],b[e]];const o=v.filter(q=>q==='O').length,xx=v.filter(q=>q==='X').length;if(o&&xx)continue;if(o===2)s+=40;if(o===1)s+=5;if(xx===2)s-=35;if(xx===1)s-=4}return s}
+function aiMove(){
+  thinking=false;if(!run||over)return;
+  const moves=legalMoves();if(!moves.length)return;
+  let bestM=null,bestS=-1e9;
+  for(const[b,i]of moves){
+    let s=Math.random()*3;
+    // win a small board
+    boards[b][i]='O';
+    if(winLine(boards[b])==='O')s+=1000;
+    boards[b][i]='';
+    // block player's win
+    boards[b][i]='X';
+    if(winLine(boards[b])==='X')s+=500;
+    boards[b][i]='';
+    s+=boardScore(boards[b])*0.5;
+    if(i===4)s+=12;
+    // sending player to a closed board gives free choice: slightly bad
+    if(bWon[i])s-=8;else s+=boardScore(boards[i])*-0.2;
+    if(s>bestS){bestS=s;bestM=[b,i]}
+  }
+  place(bestM[0],bestM[1],'O');
+}
+function draw(){
+  x.fillStyle='#101a30';x.fillRect(0,0,S,S);
+  const big=S/3,pad=6;
+  for(let b=0;b<9;b++){
+    const bx=(b%3)*big,by=Math.floor(b/3)*big;
+    const cell=(big-pad*2)/3;
+    const isAct=!over&&(active===-1?!bWon[b]:active===b)&&!bWon[b];
+    x.fillStyle=isAct?'#1a2a4a':'#141f38';
+    x.fillRect(bx+pad/2,by+pad/2,big-pad,big-pad);
+    // grid
+    x.strokeStyle='#334155';x.lineWidth=1;
+    for(let g=1;g<3;g++){
+      x.beginPath();x.moveTo(bx+pad+g*cell,by+pad);x.lineTo(bx+pad+g*cell,by+big-pad);x.stroke();
+      x.beginPath();x.moveTo(bx+pad,by+pad+g*cell);x.lineTo(bx+big-pad,by+pad+g*cell);x.stroke();
+    }
+    // cells
+    for(let i=0;i<9;i++){
+      const v=boards[b][i];if(!v)continue;
+      const cx=bx+pad+(i%3)*cell+cell/2,cy=by+pad+Math.floor(i/3)*cell+cell/2;
+      const r=cell*0.3;
+      if(v==='X'){x.strokeStyle='#4ade80';x.lineWidth=3;x.lineCap='round';
+        x.beginPath();x.moveTo(cx-r,cy-r);x.lineTo(cx+r,cy+r);x.stroke();
+        x.beginPath();x.moveTo(cx+r,cy-r);x.lineTo(cx-r,cy+r);x.stroke();}
+      else{x.strokeStyle='#fb7185';x.lineWidth=3;x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();}
+    }
+    // won overlay
+    if(bWon[b]&&bWon[b]!=='D'){
+      x.fillStyle=bWon[b]==='X'?'#16a34a55':'#be123c55';x.fillRect(bx+pad/2,by+pad/2,big-pad,big-pad);
+      const cx=bx+big/2,cy=by+big/2,r=big*0.28;
+      if(bWon[b]==='X'){x.strokeStyle='#4ade80';x.lineWidth=7;x.lineCap='round';
+        x.beginPath();x.moveTo(cx-r,cy-r);x.lineTo(cx+r,cy+r);x.stroke();
+        x.beginPath();x.moveTo(cx+r,cy-r);x.lineTo(cx-r,cy+r);x.stroke();}
+      else{x.strokeStyle='#fb7185';x.lineWidth=7;x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();}
+    }
+  }
+  // big grid lines
+  x.strokeStyle='#64748b';x.lineWidth=3;
+  for(let g=1;g<3;g++){
+    x.beginPath();x.moveTo(g*S/3,0);x.lineTo(g*S/3,S);x.stroke();
+    x.beginPath();x.moveTo(0,g*S/3);x.lineTo(S,g*S/3);x.stroke();
+  }
+}
+function toCell(px,py){
+  const r=c.getBoundingClientRect();
+  const mx=(px-r.left)*S/r.width,my=(py-r.top)*S/r.height;
+  if(mx<0||my<0||mx>=S||my>=S)return null;
+  const b=Math.floor(my/(S/3))*3+Math.floor(mx/(S/3));
+  const big=S/3,pad=6,cell=(big-pad*2)/3;
+  const lx=mx-(b%3)*big-pad,ly=my-Math.floor(b/3)*big-pad;
+  if(lx<0||ly<0||lx>=big-pad*2||ly>=big-pad*2)return null;
+  return [b,Math.floor(ly/cell)*3+Math.floor(lx/cell)];
+}
+function onTap(px,py){
+  if(!run||over||thinking||turn!=='X')return;
+  const cell=toCell(px,py);if(!cell)return;
+  const[b,i]=cell;
+  if(bWon[b])return;
+  if(active>=0&&b!==active){msg.textContent='צריך לשחק בלוח המודגש';return}
+  if(boards[b][i])return;
+  place(b,i,'X');
+}
+c.addEventListener('touchstart',e=>{e.preventDefault();const t=e.changedTouches[0];onTap(t.clientX,t.clientY)},{passive:false});
+c.addEventListener('mousedown',e=>onTap(e.clientX,e.clientY));
+function start(){document.getElementById('ovS').classList.add('hide');document.getElementById('ovE').classList.add('hide');reset();run=true;turn='X';updHud();draw()}
+document.getElementById('startBtn').onclick=start;
+document.getElementById('againB').onclick=start;
+document.getElementById('newB').onclick=start;
+reset();draw();
+</script>
+</body>
+</html>
